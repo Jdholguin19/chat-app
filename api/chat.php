@@ -40,7 +40,7 @@ try {
     echo json_encode(['error' => $e->getMessage()]);
 }
 
-/*Maneja requests POST*/
+/* Maneja requests POST */
 function handlePostRequest($action) {
     $input = json_decode(file_get_contents('php://input'), true);
     
@@ -53,7 +53,7 @@ function handlePostRequest($action) {
     }
 }
 
-/*Maneja requests GET*/
+/* Maneja requests GET */
 function handleGetRequest($action) {
     switch ($action) {
         case 'messages':
@@ -67,7 +67,7 @@ function handleGetRequest($action) {
     }
 }
 
-/*Envía un mensaje*/
+/* Envía un mensaje */
 function enviarMensaje($input) {
     $chat_id = $input['chat_id'] ?? null;
     $mensaje = $input['mensaje'] ?? '';
@@ -120,16 +120,13 @@ function enviarMensaje($input) {
                 'remitente' => 'bot',
                 'fecha' => date('Y-m-d H:i:s')
             ];
-            
-            // Simular envío por WhatsApp (opcional)
-            // sendWhatsApp('123456789', $respuesta_bot);
         }
     }
     
     echo json_encode($response);
 }
 
-/*Obtiene mensajes de un chat*/
+/* Obtiene mensajes de un chat */
 function obtenerMensajes() {
     $chat_id = $_GET['chat_id'] ?? null;
     $user_id = $_SESSION['user_id'];
@@ -160,7 +157,7 @@ function obtenerMensajes() {
     ]);
 }
 
-/*Obtiene lista de chats solo para responsables*/
+/* Obtiene lista de chats solo para responsables */
 function obtenerChats() {
     if ($_SESSION['user_role'] !== 'responsable') {
         throw new Exception('Solo disponible para responsables');
@@ -198,7 +195,7 @@ function obtenerChats() {
     }
 }
 
-/*Verifica si el usuario tiene permisos para acceder al chat*/
+/* Verifica si el usuario tiene permisos para acceder al chat */
 function verificarPermisoChat($chat_id, $user_id, $user_role) {
     try {
         $db = Database::getInstance()->getConnection();

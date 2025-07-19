@@ -1,12 +1,14 @@
 <?php
 require_once '../config.php';
+require_once '../includes/funciones.php'; // Asegúrate de incluir este archivo
 
 // Verificar que el usuario esté logueado
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'cliente') {
     redirect('login.php?role=cliente');
 }
 
-// Aquí puedes agregar la lógica para mostrar el chat
+// Obtener el chat del cliente
+$chat_id = getChatParaCliente($_SESSION['user_id']);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -29,7 +31,60 @@ if (!isLoggedIn() || $_SESSION['user_role'] !== 'cliente') {
     </div>
 
     <script>
-        // Aquí puedes agregar la lógica para manejar el envío de mensajes
+        // Función para cargar mensajes
+        function loadMessages() {
+            fetch('../api/chat.php?action=messages&chat_id=<?php echo $chat_id; ?>')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const chatMessages = document.getElementById('chat-messages');
+                        chatMessages.innerHTML = ''; // Limpiar mensajes anteriores
+                        data.mensajes.forEach(mensaje => {
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = 'message ' + mensaje.remitente;
+                            messageDiv.innerHTML = `<strong>${mensaje.remitente}</strong>: ${mensaje.contenido}`;
+                            chatMessages.appendChild(messageDiv);
+                        });
+                        chatMessages.scrollTop = chatMessages.scrollHeight; // Desplazar hacia abajo
+                    } else {
+                        console.error(data.error);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Enviar mensaje
+        document.getElementById('send').addEventListener('click', function() {
+            const messageInput = document.getElementById('message');
+            const message = messageInput.value;
+
+            if (message.trim() === '') {
+                alert('Por favor escribe un mensaje.');
+                return;
+            }
+
+            fetch('../api/chat.php?action=send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ chat_id: '<?php echo $chat_id; ?>', mensaje: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadMessages(); // Cargar mensajes después de enviar
+                    messageInput.value = ''; // Limpiar el input
+                } else {
+                    alert(data.error);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Cargar mensajes al inicio
+        loadMessages();
+        setInterval(loadMessages, 5000); // Cargar mensajes cada 5 segundos
     </script>
 </body>
 </html>
