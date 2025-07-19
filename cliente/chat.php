@@ -34,7 +34,12 @@ $chat_id = getChatParaCliente($_SESSION['user_id']);
         // Función para cargar mensajes
         function loadMessages() {
             fetch('../api/chat.php?action=messages&chat_id=<?php echo $chat_id; ?>')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error en la respuesta del servidor: ' + response.statusText);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success) {
                         const chatMessages = document.getElementById('chat-messages');
@@ -50,7 +55,10 @@ $chat_id = getChatParaCliente($_SESSION['user_id']);
                         console.error(data.error);
                     }
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ocurrió un error al cargar los mensajes. Intenta nuevamente.');
+                });
         }
 
         // Enviar mensaje
@@ -70,7 +78,12 @@ $chat_id = getChatParaCliente($_SESSION['user_id']);
                 },
                 body: JSON.stringify({ chat_id: '<?php echo $chat_id; ?>', mensaje: message })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error en la respuesta del servidor: ' + response.statusText);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     loadMessages(); // Cargar mensajes después de enviar
@@ -79,7 +92,10 @@ $chat_id = getChatParaCliente($_SESSION['user_id']);
                     alert(data.error);
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Ocurrió un error al enviar el mensaje. Intenta nuevamente.');
+            });
         });
 
         // Cargar mensajes al inicio

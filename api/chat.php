@@ -75,20 +75,26 @@ function enviarMensaje($input) {
     $user_id = $_SESSION['user_id'];
     
     if (empty($mensaje)) {
-        throw new Exception('El mensaje no puede estar vacío');
+        http_response_code(400);
+        echo json_encode(['error' => 'El mensaje no puede estar vacío']);
+        return;
     }
     
     // Si es cliente y no tiene chat_id, obtener o crear chat
     if ($user_role === 'cliente' && !$chat_id) {
         $chat_id = getChatParaCliente($user_id);
         if (!$chat_id) {
-            throw new Exception('No se pudo crear el chat');
+            http_response_code(500);
+            echo json_encode(['error' => 'No se pudo crear el chat']);
+            return;
         }
     }
     
     // Verificar permisos del chat
     if (!verificarPermisoChat($chat_id, $user_id, $user_role)) {
-        throw new Exception('Sin permisos para este chat');
+        http_response_code(403);
+        echo json_encode(['error' => 'Sin permisos para este chat']);
+        return;
     }
     
     // Guardar mensaje del usuario
@@ -96,7 +102,9 @@ function enviarMensaje($input) {
     $mensaje_id = guardarMensaje($chat_id, $remitente, $mensaje);
     
     if (!$mensaje_id) {
-        throw new Exception('Error al guardar el mensaje');
+        http_response_code(500);
+        echo json_encode(['error' => 'Error al guardar el mensaje']);
+        return;
     }
     
     $response = [
@@ -137,12 +145,16 @@ function obtenerMensajes() {
         if ($user_role === 'cliente') {
             $chat_id = getChatParaCliente($user_id);
         } else {
-            throw new Exception('chat_id requerido');
+            http_response_code(400);
+            echo json_encode(['error' => 'chat_id requerido']);
+            return;
         }
     }
     
     if (!$chat_id || !verificarPermisoChat($chat_id, $user_id, $user_role)) {
-        throw new Exception('Sin permisos para este chat');
+        http_response_code(403);
+        echo json_encode(['error' => 'Sin permisos para este chat']);
+        return;
     }
     
     $mensajes = getMensajesChat($chat_id);
@@ -160,7 +172,9 @@ function obtenerMensajes() {
 /* Obtiene lista de chats solo para responsables */
 function obtenerChats() {
     if ($_SESSION['user_role'] !== 'responsable') {
-        throw new Exception('Solo disponible para responsables');
+        http_response_code(403);
+        echo json_encode(['error' => 'Solo disponible para responsables']);
+        return;
     }
     
     $user_id = $_SESSION['user_id'];
@@ -191,7 +205,8 @@ function obtenerChats() {
             'chats' => $chats
         ]);
     } catch (Exception $e) {
-        throw new Exception('Error obteniendo chats: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['error' => 'Error obteniendo chats: ' . $e->getMessage()]);
     }
 }
 
