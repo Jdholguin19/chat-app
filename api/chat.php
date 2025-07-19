@@ -7,6 +7,12 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
+// Verificar y crear el directorio de logs si no existe
+$logDir = dirname(getenv('LOG_PATH') . 'apii_errors.log');
+if (!is_dir($logDir)) {
+    mkdir($logDir, 0755, true); // Crear el directorio si no existe
+}
+
 // Configurar headers para JSON
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -106,8 +112,19 @@ function enviarMensaje($input) {
             sendJsonResponse(['error' => 'Datos inválidos'], 400);
         }
         
+        // Validar que chat_id y mensaje estén presentes
         $chat_id = $input['chat_id'] ?? null;
         $mensaje = trim($input['mensaje'] ?? '');
+        
+        if (is_null($chat_id) || empty($mensaje)) {
+            logError("chat_id o mensaje faltante", ['chat_id' => $chat_id, 'mensaje' => $mensaje]);
+            sendJsonResponse(['error' => 'chat_id y mensaje son requeridos'], 400);
+        }
+        
+        // Sanitizar entradas
+        $chat_id = cleanInput($chat_id);
+        $mensaje = cleanInput($mensaje);
+        
         $user_role = $_SESSION['user_role'];
         $user_id = $_SESSION['user_id'];
         
@@ -119,10 +136,6 @@ function enviarMensaje($input) {
         ]);
         
         // Validaciones básicas
-        if (empty($mensaje)) {
-            sendJsonResponse(['error' => 'El mensaje no puede estar vacío'], 400);
-        }
-        
         if (strlen($mensaje) > 500) {
             sendJsonResponse(['error' => 'El mensaje es demasiado largo (máximo 500 caracteres)'], 400);
         }

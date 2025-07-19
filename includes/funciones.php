@@ -180,81 +180,6 @@ function generarRespuestaBot($mensaje) {
     }
 }
 
-// Función para verificar y crear la tabla mensajes_pred si no existe
-function verificarTablaMensajesPred() {
-    try {
-        $db = Database::getInstance()->getConnection();
-        
-        // Verificar si la tabla existe
-        $stmt = $db->prepare("SHOW TABLES LIKE 'mensajes_pred'");
-        $stmt->execute();
-        
-        if (!$stmt->fetch()) {
-            // Crear la tabla si no existe
-            $sql = "
-                CREATE TABLE `mensajes_pred` (
-                    `id` int(11) NOT NULL AUTO_INCREMENT,
-                    `tipo` enum('bot','auto') NOT NULL DEFAULT 'bot',
-                    `palabras_clave` text NOT NULL,
-                    `texto` text NOT NULL,
-                    `orden` int(11) NOT NULL DEFAULT 0,
-                    `activo` tinyint(1) NOT NULL DEFAULT 1,
-                    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (`id`),
-                    KEY `idx_tipo_orden` (`tipo`, `orden`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            ";
-            
-            $db->exec($sql);
-            error_log("Tabla mensajes_pred creada exitosamente");
-            
-            // Insertar algunos mensajes de ejemplo
-            $mensajes_ejemplo = [
-                ['bot', 'hola,hi,buenos días,buenas tardes,buenas noches', '¡Hola! ¿En qué puedo ayudarte hoy?', 1],
-                ['bot', 'precio,costo,valor,cuanto cuesta', 'Te ayudo con información sobre precios. ¿Qué producto o servicio te interesa?', 2],
-                ['bot', 'horario,hora,cuando abren,horarios', 'Nuestros horarios de atención son de lunes a viernes de 9:00 AM a 6:00 PM.', 3],
-                ['bot', 'contacto,teléfono,email,dirección', 'Puedes contactarnos al teléfono 123-456-7890 o al email info@empresa.com', 4],
-                ['bot', 'ayuda,help,soporte', 'Estoy aquí para ayudarte. ¿Qué necesitas saber?', 5],
-                ['bot', 'gracias,thank you,muchas gracias', '¡De nada! ¿Hay algo más en lo que pueda ayudarte?', 6],
-                ['bot', 'adios,bye,hasta luego,chao', '¡Hasta luego! Que tengas un excelente día.', 7]
-            ];
-            
-            $stmt = $db->prepare("INSERT INTO mensajes_pred (tipo, palabras_clave, texto, orden) VALUES (?, ?, ?, ?)");
-            foreach ($mensajes_ejemplo as $mensaje) {
-                $stmt->execute($mensaje);
-            }
-            
-            error_log("Mensajes de ejemplo insertados en mensajes_pred");
-        }
-        
-        return true;
-    } catch (Exception $e) {
-        error_log("Error verificando tabla mensajes_pred: " . $e->getMessage());
-        return false;
-    }
-}
-
-/* Simula envío de WhatsApp */
-function sendWhatsApp($numero, $mensaje) {
-    try {
-        $log_file = getenv('WHATSAPP_LOG') ?: './logs/whatsapp.log';
-        $timestamp = date('Y-m-d H:i:s');
-        $log_entry = "[{$timestamp}] WhatsApp to {$numero}: {$mensaje}" . PHP_EOL;
-        
-        // Crear directorio si no existe
-        $log_dir = dirname($log_file);
-        if (!is_dir($log_dir)) {
-            mkdir($log_dir, 0755, true);
-        }
-        
-        file_put_contents($log_file, $log_entry, FILE_APPEND | LOCK_EX);
-        return true;
-    } catch (Exception $e) {
-        error_log("Error sending WhatsApp: " . $e->getMessage());
-        return false;
-    }
-}
-
 /* Obtiene mensajes de un chat */
 function getMensajesChat($chat_id, $limit = 50) {
     try {
@@ -275,9 +200,6 @@ function getMensajesChat($chat_id, $limit = 50) {
         return [];
     }
 }
-
-//
-
 
 /* Marca mensajes como leídos */
 function marcarMensajesComoLeidos($chat_id, $remitente_exclude = null) {
@@ -327,6 +249,25 @@ function obtenerChatsResponsable($user_id) {
     } catch (Exception $e) {
         error_log("Error obteniendo chats: " . $e->getMessage());
         return [];
+    }
+}
+
+/* Verifica si el usuario tiene permisos para acceder al chat */
+function verificarPermisoChat($chat_id, $user_id, $user_role) {
+    try {
+        $db = Database::getInstance()->getConnection();
+        
+        if ($user_role === 'cliente') {
+            $stmt = $db->prepare("SELECT id FROM chats WHERE id = ? AND cliente_id = ?");
+        } else {
+            $stmt = $db->prepare("SELECT id FROM chats WHERE id = ? AND responsable_id = ?");
+        }
+        
+        $stmt->execute([$chat_id, $user_id]);
+        return $stmt->fetch() !== false;
+    } catch (Exception $e) {
+        logError("Error verificando permisos: " . $e->getMessage());
+        return false;
     }
 }
 ?>
