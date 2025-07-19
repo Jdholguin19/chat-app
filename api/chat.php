@@ -263,6 +263,7 @@ function enviarMensaje($input) {
        }
    }
    
+   
 
 /* Obtiene lista de chats solo para responsables */
 function obtenerChats() {

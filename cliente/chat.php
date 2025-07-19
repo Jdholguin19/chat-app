@@ -62,57 +62,27 @@ if (!$chat_id) {
 
         // Función para cargar mensajes
         function loadMessages() {
-            if (!CHAT_ID) {
-                showError('ID de chat no válido');
-                return;
-            }
-
-            fetch('../api/chat.php?action=messages&chat_id=' + CHAT_ID)
+            fetch('../api/chat.php?action=messages&chat_id=' + chat_id)
                 .then(response => {
-                    // Verificar si la respuesta es JSON válido
-                    const contentType = response.headers.get('content-type');
-                    if (!contentType || !contentType.includes('application/json')) {
-                        throw new Error('La respuesta no es JSON válido');
-                    }
-                    
                     if (!response.ok) {
-                        throw new Error('Error del servidor: ' + response.status);
+                        throw new Error('Network response was not ok');
                     }
-                    
                     return response.json();
                 })
                 .then(data => {
-                    if (data.success && data.mensajes) {
-                        const chatMessages = document.getElementById('chat-messages');
-                        chatMessages.innerHTML = ''; // Limpiar mensajes anteriores
-                        
-                        data.mensajes.forEach(mensaje => {
-                            const messageDiv = document.createElement('div');
-                            messageDiv.className = 'message ' + mensaje.remitente;
-                            
-                            const remitenteTexto = {
-                                'cliente': 'Tú',
-                                'bot': 'Asistente',
-                                'resp': 'Responsable'
-                            };
-                            
-                            messageDiv.innerHTML = `
-                                <strong>${remitenteTexto[mensaje.remitente] || mensaje.remitente}:</strong> 
-                                ${mensaje.contenido}
-                                <div class="message-meta">${new Date(mensaje.fecha).toLocaleTimeString()}</div>
-                            `;
-                            chatMessages.appendChild(messageDiv);
-                        });
-                        
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    if (data.error) {
+                        showError('No se pudieron cargar los mensajes: ' + data.error);
                     } else {
-                        showError(data.error || 'Error desconocido al cargar mensajes');
+                        // Procesar los mensajes aquí
+                        displayMessages(data.mensajes);
                     }
                 })
                 .catch(error => {
+                    console.error('Error:', error);
                     showError('No se pudieron cargar los mensajes: ' + error.message);
                 });
         }
+
 
         // Enviar mensaje
         document.getElementById('send').addEventListener('click', sendMessage);

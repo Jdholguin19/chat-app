@@ -201,6 +201,7 @@ function generarRespuestaBot($mensaje) {
        }
    }
    
+   
 
 /* Marca mensajes como leídos */
 function marcarMensajesComoLeidos($chat_id, $remitente_exclude = null) {
