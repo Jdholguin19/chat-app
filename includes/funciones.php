@@ -276,6 +276,9 @@ function getMensajesChat($chat_id, $limit = 50) {
     }
 }
 
+//
+
+
 /* Marca mensajes como leídos */
 function marcarMensajesComoLeidos($chat_id, $remitente_exclude = null) {
     try {

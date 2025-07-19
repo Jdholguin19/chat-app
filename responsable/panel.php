@@ -60,7 +60,7 @@ try {
                 </div>
             <?php else: ?>
                 <?php foreach ($chats as $chat): ?>
-                    <div class="chat-item <?php echo $chat['no_leidos'] > 0 ? 'unread' : ''; ?>" onclick="openChat(<?php echo $chat['id']; ?>)">
+                    <a href="chat.php?chat_id=<?php echo $chat['id']; ?>" class="chat-item <?php echo $chat['no_leidos'] > 0 ? 'unread' : ''; ?>">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
                                 <h4><?php echo htmlspecialchars($chat['cliente_nombre']); ?></h4>
@@ -93,7 +93,7 @@ try {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </a>
                 <?php endforeach; ?>
             <?php endif; ?>
         </div>
