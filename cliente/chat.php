@@ -1,14 +1,19 @@
 <?php
 require_once '../config.php';
-require_once '../includes/funciones.php'; // Asegúrate de incluir este archivo
+require_once '../includes/funciones.php';
 
 // Verificar que el usuario esté logueado
 if (!isLoggedIn() || $_SESSION['user_role'] !== 'cliente') {
-    redirect('login.php?role=cliente');
+    redirect('../login.php?role=cliente');
 }
 
 // Obtener el chat del cliente
 $chat_id = getChatParaCliente($_SESSION['user_id']);
+
+// Verificar que se pudo crear/obtener el chat
+if (!$chat_id) {
+    $error_message = "Error: No se pudo crear o acceder al chat. Por favor contacte al administrador.";
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -20,87 +25,168 @@ $chat_id = getChatParaCliente($_SESSION['user_id']);
 </head>
 <body>
     <div class="chat-container">
-        <h2>Chat en Vivo</h2>
-        <div class="chat-messages" id="chat-messages">
-            <!-- Aquí se cargarán los mensajes del chat -->
+        <div class="chat-header">
+            <h2>Chat en Vivo</h2>
+            <a href="../logout.php" class="btn btn-secondary" style="float: right;">Cerrar Sesión</a>
         </div>
-        <div class="chat-input">
-            <input type="text" id="message" placeholder="Escribe tu mensaje...">
-            <button id="send">Enviar</button>
-        </div>
+        
+        <?php if (isset($error_message)): ?>
+            <div class="alert alert-error"><?php echo $error_message; ?></div>
+        <?php else: ?>
+            <div class="chat-messages" id="chat-messages">
+                <div class="message bot">
+                    <strong>Asistente:</strong> ¡Hola! ¿En qué puedo ayudarte hoy?
+                    <div class="message-meta"><?php echo date('H:i'); ?></div>
+                </div>
+            </div>
+            <div class="chat-input">
+                <input type="text" id="message" placeholder="Escribe tu mensaje..." maxlength="500">
+                <button id="send" type="button">Enviar</button>
+            </div>
+        <?php endif; ?>
     </div>
 
+    <?php if (!isset($error_message)): ?>
     <script>
+        const CHAT_ID = <?php echo json_encode($chat_id); ?>;
+        
+        // Función para mostrar errores
+        function showError(message) {
+            console.error('Error:', message);
+            const chatMessages = document.getElementById('chat-messages');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-error';
+            errorDiv.textContent = 'Error: ' + message;
+            chatMessages.appendChild(errorDiv);
+        }
+
         // Función para cargar mensajes
         function loadMessages() {
-            fetch('../api/chat.php?action=messages&chat_id=<?php echo $chat_id; ?>')
+            if (!CHAT_ID) {
+                showError('ID de chat no válido');
+                return;
+            }
+
+            fetch('../api/chat.php?action=messages&chat_id=' + CHAT_ID)
                 .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Error en la respuesta del servidor: ' + response.statusText);
+                    // Verificar si la respuesta es JSON válido
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('La respuesta no es JSON válido');
                     }
+                    
+                    if (!response.ok) {
+                        throw new Error('Error del servidor: ' + response.status);
+                    }
+                    
                     return response.json();
                 })
                 .then(data => {
-                    if (data.success) {
+                    if (data.success && data.mensajes) {
                         const chatMessages = document.getElementById('chat-messages');
                         chatMessages.innerHTML = ''; // Limpiar mensajes anteriores
+                        
                         data.mensajes.forEach(mensaje => {
                             const messageDiv = document.createElement('div');
                             messageDiv.className = 'message ' + mensaje.remitente;
-                            messageDiv.innerHTML = `<strong>${mensaje.remitente}</strong>: ${mensaje.contenido}`;
+                            
+                            const remitenteTexto = {
+                                'cliente': 'Tú',
+                                'bot': 'Asistente',
+                                'resp': 'Responsable'
+                            };
+                            
+                            messageDiv.innerHTML = `
+                                <strong>${remitenteTexto[mensaje.remitente] || mensaje.remitente}:</strong> 
+                                ${mensaje.contenido}
+                                <div class="message-meta">${new Date(mensaje.fecha).toLocaleTimeString()}</div>
+                            `;
                             chatMessages.appendChild(messageDiv);
                         });
-                        chatMessages.scrollTop = chatMessages.scrollHeight; // Desplazar hacia abajo
+                        
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
                     } else {
-                        console.error(data.error);
+                        showError(data.error || 'Error desconocido al cargar mensajes');
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    alert('Ocurrió un error al cargar los mensajes. Intenta nuevamente.');
+                    showError('No se pudieron cargar los mensajes: ' + error.message);
                 });
         }
 
         // Enviar mensaje
-        document.getElementById('send').addEventListener('click', function() {
-            const messageInput = document.getElementById('message');
-            const message = messageInput.value;
+        document.getElementById('send').addEventListener('click', sendMessage);
+        document.getElementById('message').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
 
-            if (message.trim() === '') {
+        function sendMessage() {
+            const messageInput = document.getElementById('message');
+            const message = messageInput.value.trim();
+
+            if (message === '') {
                 alert('Por favor escribe un mensaje.');
                 return;
             }
+
+            if (!CHAT_ID) {
+                showError('ID de chat no válido');
+                return;
+            }
+
+            // Deshabilitar input mientras se envía
+            messageInput.disabled = true;
+            document.getElementById('send').disabled = true;
 
             fetch('../api/chat.php?action=send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ chat_id: '<?php echo $chat_id; ?>', mensaje: message })
+                body: JSON.stringify({ 
+                    chat_id: CHAT_ID, 
+                    mensaje: message 
+                })
             })
             .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error en la respuesta del servidor: ' + response.statusText);
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('La respuesta no es JSON válido');
                 }
+                
+                if (!response.ok) {
+                    throw new Error('Error del servidor: ' + response.status);
+                }
+                
                 return response.json();
             })
             .then(data => {
                 if (data.success) {
-                    loadMessages(); // Cargar mensajes después de enviar
-                    messageInput.value = ''; // Limpiar el input
+                    messageInput.value = '';
+                    loadMessages(); // Recargar mensajes
                 } else {
-                    alert(data.error);
+                    showError(data.error || 'Error al enviar mensaje');
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('Ocurrió un error al enviar el mensaje. Intenta nuevamente.');
+                showError('No se pudo enviar el mensaje: ' + error.message);
+            })
+            .finally(() => {
+                // Reactivar input
+                messageInput.disabled = false;
+                document.getElementById('send').disabled = false;
+                messageInput.focus();
             });
-        });
+        }
 
         // Cargar mensajes al inicio
         loadMessages();
-        setInterval(loadMessages, 5000); // Cargar mensajes cada 5 segundos
+        
+        // Actualizar mensajes cada 5 segundos
+        setInterval(loadMessages, 5000);
     </script>
+    <?php endif; ?>
 </body>
 </html>
