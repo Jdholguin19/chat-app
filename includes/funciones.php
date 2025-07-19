@@ -59,7 +59,9 @@ function crearNuevoChat($cliente_id) {
         
         return $chat_id;
     } catch (Exception $e) {
-        $db->rollBack();
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         error_log("Error creating chat: " . $e->getMessage());
         return null;
     }
@@ -92,7 +94,6 @@ function getChatParaCliente($cliente_id) {
     }
 }
 
-
 /* Guarda un mensaje en la base de datos */
 function guardarMensaje($chat_id, $remitente, $contenido) {
     try {
@@ -118,32 +119,42 @@ function guardarMensaje($chat_id, $remitente, $contenido) {
     }
 }
 
-/* Genera respuesta automática del bot */
+/* Genera respuesta automática del bot - CORREGIDA */
 function generarRespuestaBot($mensaje) {
     try {
-        $db = Database::getInstance()->getConnection();
-        $mensaje_lower = strtolower($mensaje);
+        $mensaje_lower = strtolower(trim($mensaje));
         
-        // Buscar respuesta predefinida
-        $stmt = $db->prepare("
-            SELECT texto FROM mensajes_pred 
-            WHERE tipo = 'bot' AND activo = 1
-            ORDER BY orden ASC
-        ");
-        $stmt->execute();
-        $respuestas = $stmt->fetchAll();
+        // Respuestas predefinidas con palabras clave
+        $respuestas_predefinidas = [
+            'hola' => ['hola', 'buenos días', 'buenas tardes', 'buenas noches', 'saludos'],
+            'ayuda' => ['ayuda', 'ayudar', 'soporte', 'asistencia'],
+            'precio' => ['precio', 'costo', 'cuánto cuesta', 'tarifa'],
+            'horario' => ['horario', 'abierto', 'cerrado', 'atención'],
+            'contacto' => ['contacto', 'teléfono', 'dirección', 'ubicación'],
+            'gracias' => ['gracias', 'thank you', 'muchas gracias'],
+            'problema' => ['problema', 'error', 'falla', 'no funciona']
+        ];
         
-        foreach ($respuestas as $respuesta) {
-            $palabras_clave = explode(',', strtolower($respuesta['texto']));
-            
+        $mensajes_respuesta = [
+            'hola' => '¡Hola! ¿En qué puedo ayudarte hoy?',
+            'ayuda' => 'Estoy aquí para ayudarte. Un responsable se pondrá en contacto contigo pronto.',
+            'precio' => 'Para información sobre precios, un responsable te atenderá en breve.',
+            'horario' => 'Nuestro horario de atención es de 9:00 AM a 6:00 PM, de lunes a viernes.',
+            'contacto' => 'Puedes contactarnos a través de este chat o llamarnos al teléfono de la empresa.',
+            'gracias' => '¡De nada! Estoy aquí para ayudarte.',
+            'problema' => 'Lamento escuchar que tienes un problema. Un responsable te ayudará a resolverlo pronto.'
+        ];
+        
+        // Buscar coincidencias
+        foreach ($respuestas_predefinidas as $categoria => $palabras_clave) {
             foreach ($palabras_clave as $palabra) {
-                if (strpos($mensaje_lower, trim($palabra)) !== false) {
-                    return $respuesta['texto'];
+                if (strpos($mensaje_lower, $palabra) !== false) {
+                    return $mensajes_respuesta[$categoria];
                 }
             }
         }
         
-        // Respuesta por defecto si no encuentra coincidencia
+        // Respuesta por defecto
         return "Gracias por tu mensaje. Un responsable se pondrá en contacto contigo pronto.";
         
     } catch (Exception $e) {
@@ -217,14 +228,8 @@ function marcarMensajesComoLeidos($chat_id, $remitente_exclude = null) {
     }
 }
 
-/* Obtiene lista de chats solo para responsables */
-function obtenerChats() {
-    if ($_SESSION['user_role'] !== 'responsable') {
-        throw new Exception('Solo disponible para responsables');
-    }
-    
-    $user_id = $_SESSION['user_id'];
-    
+/* Obtiene lista de chats solo para responsables - FUNCIÓN ÚNICA */
+function obtenerChatsResponsable($user_id) {
     try {
         $db = Database::getInstance()->getConnection();
         
@@ -244,11 +249,10 @@ function obtenerChats() {
             ORDER BY c.updated_at DESC
         ");
         $stmt->execute([$user_id]);
-        $chats = $stmt->fetchAll();
-        
-        return $chats; // Asegúrate de devolver los chats
+        return $stmt->fetchAll();
     } catch (Exception $e) {
-        throw new Exception('Error obteniendo chats: ' . $e->getMessage());
+        error_log("Error obteniendo chats: " . $e->getMessage());
+        return [];
     }
 }
 ?>
