@@ -215,4 +215,39 @@ function marcarMensajesComoLeidos($chat_id, $remitente_exclude = null) {
         return false;
     }
 }
+
+/* Obtiene lista de chats solo para responsables */
+function obtenerChats() {
+    if ($_SESSION['user_role'] !== 'responsable') {
+        throw new Exception('Solo disponible para responsables');
+    }
+    
+    $user_id = $_SESSION['user_id'];
+    
+    try {
+        $db = Database::getInstance()->getConnection();
+        
+        $stmt = $db->prepare("
+            SELECT 
+                c.id,
+                c.abierto,
+                c.updated_at,
+                u.nombre as cliente_nombre,
+                u.email as cliente_email,
+                (SELECT COUNT(*) FROM mensajes m WHERE m.chat_id = c.id AND m.remitente != 'resp' AND m.leido = 0) as no_leidos,
+                (SELECT contenido FROM mensajes m WHERE m.chat_id = c.id ORDER BY m.fecha DESC LIMIT 1) as ultimo_mensaje,
+                (SELECT fecha FROM mensajes m WHERE m.chat_id = c.id ORDER BY m.fecha DESC LIMIT 1) as fecha_ultimo_mensaje
+            FROM chats c
+            INNER JOIN users u ON c.cliente_id = u.id
+            WHERE c.responsable_id = ?
+            ORDER BY c.updated_at DESC
+        ");
+        $stmt->execute([$user_id]);
+        $chats = $stmt->fetchAll();
+        
+        return $chats; // Asegúrate de devolver los chats
+    } catch (Exception $e) {
+        throw new Exception('Error obteniendo chats: ' . $e->getMessage());
+    }
+}
 ?>
