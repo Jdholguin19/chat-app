@@ -26,6 +26,7 @@ function sendJsonResponse($data, $status = 200) {
     exit();
 }
 
+
 // Función mejorada para logging de errores
 function logError($message, $context = []) {
     $timestamp = date('Y-m-d H:i:s');
@@ -33,8 +34,10 @@ function logError($message, $context = []) {
     if (!empty($context)) {
         $logMessage .= " Context: " . json_encode($context);
     }
-    error_log($logMessage);
+    error_log($logMessage, 3, getenv('LOG_PATH') . 'apii_errors.log'); // Cambia el nombre del archivo si lo deseas
 }
+
+
 
 // Verificar que el usuario esté logueado
 if (!isLoggedIn()) {
