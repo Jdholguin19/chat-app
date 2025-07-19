@@ -2,7 +2,7 @@
 require_once '../config.php';
 require_once '../includes/funciones.php';
 
-// Deshabilitar reporte de errores en pantalla para producción
+// Habilitar logging de errores más detallado
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
@@ -26,6 +26,16 @@ function sendJsonResponse($data, $status = 200) {
     exit();
 }
 
+// Función mejorada para logging de errores
+function logError($message, $context = []) {
+    $timestamp = date('Y-m-d H:i:s');
+    $logMessage = "[$timestamp] API Error: $message";
+    if (!empty($context)) {
+        $logMessage .= " Context: " . json_encode($context);
+    }
+    error_log($logMessage);
+}
+
 // Verificar que el usuario esté logueado
 if (!isLoggedIn()) {
     sendJsonResponse(['error' => 'No autorizado'], 401);
@@ -46,8 +56,12 @@ try {
             sendJsonResponse(['error' => 'Método no permitido'], 405);
     }
 } catch (Exception $e) {
-    error_log("API Error: " . $e->getMessage());
-    error_log("Stack trace: " . $e->getTraceAsString());
+    logError("Excepción general: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'action' => $action,
+        'method' => $method,
+        'user_id' => $_SESSION['user_id'] ?? 'unknown'
+    ]);
     sendJsonResponse(['error' => 'Error interno del servidor'], 500);
 }
 
@@ -57,6 +71,7 @@ function handlePostRequest($action) {
         case 'send':
             $input = json_decode(file_get_contents('php://input'), true);
             if (json_last_error() !== JSON_ERROR_NONE) {
+                logError("JSON inválido: " . json_last_error_msg());
                 sendJsonResponse(['error' => 'JSON inválido'], 400);
             }
             enviarMensaje($input);
@@ -80,11 +95,14 @@ function handleGetRequest($action) {
     }
 }
 
-/* Envía un mensaje */
+/* Envía un mensaje - Versión mejorada */
 function enviarMensaje($input) {
     try {
+        logError("Iniciando envío de mensaje", ['input' => $input]);
+        
         // Validar entrada
         if (!is_array($input)) {
+            logError("Datos de entrada no son array");
             sendJsonResponse(['error' => 'Datos inválidos'], 400);
         }
         
@@ -92,6 +110,13 @@ function enviarMensaje($input) {
         $mensaje = trim($input['mensaje'] ?? '');
         $user_role = $_SESSION['user_role'];
         $user_id = $_SESSION['user_id'];
+        
+        logError("Datos extraídos", [
+            'chat_id' => $chat_id,
+            'mensaje_length' => strlen($mensaje),
+            'user_role' => $user_role,
+            'user_id' => $user_id
+        ]);
         
         // Validaciones básicas
         if (empty($mensaje)) {
@@ -104,29 +129,39 @@ function enviarMensaje($input) {
         
         // Si es cliente y no tiene chat_id, obtener o crear chat
         if ($user_role === 'cliente' && !$chat_id) {
+            logError("Cliente sin chat_id, obteniendo chat");
             $chat_id = getChatParaCliente($user_id);
             if (!$chat_id) {
+                logError("No se pudo obtener/crear chat para cliente", ['user_id' => $user_id]);
                 sendJsonResponse(['error' => 'No se pudo crear el chat'], 500);
             }
+            logError("Chat obtenido/creado", ['chat_id' => $chat_id]);
         }
         
         // Verificar que chat_id sea válido
         if (!$chat_id || !is_numeric($chat_id)) {
+            logError("Chat ID inválido", ['chat_id' => $chat_id]);
             sendJsonResponse(['error' => 'ID de chat inválido'], 400);
         }
         
         // Verificar permisos del chat
         if (!verificarPermisoChat($chat_id, $user_id, $user_role)) {
+            logError("Sin permisos para chat", ['chat_id' => $chat_id, 'user_id' => $user_id]);
             sendJsonResponse(['error' => 'Sin permisos para este chat'], 403);
         }
         
         // Guardar mensaje del usuario
         $remitente = $user_role === 'cliente' ? 'cliente' : 'resp';
+        logError("Guardando mensaje", ['remitente' => $remitente, 'chat_id' => $chat_id]);
+        
         $mensaje_id = guardarMensaje($chat_id, $remitente, $mensaje);
         
         if (!$mensaje_id) {
+            logError("Error al guardar mensaje en BD");
             sendJsonResponse(['error' => 'Error al guardar el mensaje'], 500);
         }
+        
+        logError("Mensaje guardado exitosamente", ['mensaje_id' => $mensaje_id]);
         
         $response = [
             'success' => true,
@@ -140,7 +175,10 @@ function enviarMensaje($input) {
         // Si es cliente, generar respuesta del bot
         if ($user_role === 'cliente') {
             try {
+                logError("Generando respuesta del bot");
                 $respuesta_bot = generarRespuestaBot($mensaje);
+                logError("Respuesta bot generada", ['respuesta' => substr($respuesta_bot, 0, 50) . '...']);
+                
                 $bot_mensaje_id = guardarMensaje($chat_id, 'bot', $respuesta_bot);
                 
                 if ($bot_mensaje_id) {
@@ -150,17 +188,25 @@ function enviarMensaje($input) {
                         'remitente' => 'bot',
                         'fecha' => date('Y-m-d H:i:s')
                     ];
+                    logError("Respuesta bot guardada", ['bot_mensaje_id' => $bot_mensaje_id]);
+                } else {
+                    logError("Error al guardar respuesta del bot");
                 }
             } catch (Exception $e) {
-                error_log("Error generando respuesta bot: " . $e->getMessage());
+                logError("Error generando respuesta bot: " . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString()
+                ]);
                 // No fallar por esto, continuar sin respuesta bot
             }
         }
         
+        logError("Enviando respuesta exitosa");
         sendJsonResponse($response, 200);
     } catch (Exception $e) {
-        error_log("Error enviando mensaje: " . $e->getMessage());
-        error_log("Stack trace: " . $e->getTraceAsString());
+        logError("Error en enviarMensaje: " . $e->getMessage(), [
+            'trace' => $e->getTraceAsString(),
+            'input' => $input ?? 'null'
+        ]);
         sendJsonResponse(['error' => 'Error interno del servidor'], 500);
     }
 }
@@ -199,7 +245,7 @@ function obtenerMensajes() {
             'mensajes' => $mensajes
         ], 200);
     } catch (Exception $e) {
-        error_log("Error obteniendo mensajes: " . $e->getMessage());
+        logError("Error obteniendo mensajes: " . $e->getMessage());
         sendJsonResponse(['error' => 'Error interno del servidor'], 500);
     }
 }
@@ -219,7 +265,7 @@ function obtenerChats() {
             'chats' => $chats
         ], 200);
     } catch (Exception $e) {
-        error_log("Error obteniendo lista de chats: " . $e->getMessage());
+        logError("Error obteniendo lista de chats: " . $e->getMessage());
         sendJsonResponse(['error' => 'Error interno del servidor'], 500);
     }
 }
@@ -238,7 +284,7 @@ function verificarPermisoChat($chat_id, $user_id, $user_role) {
         $stmt->execute([$chat_id, $user_id]);
         return $stmt->fetch() !== false;
     } catch (Exception $e) {
-        error_log("Error verificando permisos: " . $e->getMessage());
+        logError("Error verificando permisos: " . $e->getMessage());
         return false;
     }
 }

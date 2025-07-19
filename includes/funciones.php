@@ -122,12 +122,24 @@ function guardarMensaje($chat_id, $remitente, $contenido) {
 /* Genera respuesta automática del bot usando la tabla mensajes_pred */
 function generarRespuestaBot($mensaje) {
     try {
+        error_log("Bot: Procesando mensaje: " . substr($mensaje, 0, 50));
+        
         $db = Database::getInstance()->getConnection();
         $mensaje_lower = strtolower(trim($mensaje));
         
+        // Verificar que la tabla mensajes_pred existe
+        $stmt = $db->prepare("SHOW TABLES LIKE 'mensajes_pred'");
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            error_log("Bot: Tabla mensajes_pred no existe");
+            return "Gracias por contactarnos. Un responsable te atenderá pronto.";
+        }
+        
+        error_log("Bot: Tabla mensajes_pred encontrada");
+        
         // Obtener todas las respuestas predefinidas ordenadas por prioridad
         $stmt = $db->prepare("
-            SELECT palabras_clave, texto 
+            SELECT palabras_clave, texto, orden
             FROM mensajes_pred 
             WHERE tipo = 'bot' 
             ORDER BY orden ASC
@@ -135,24 +147,90 @@ function generarRespuestaBot($mensaje) {
         $stmt->execute();
         $respuestas = $stmt->fetchAll();
         
+        error_log("Bot: Encontradas " . count($respuestas) . " respuestas predefinidas");
+        
+        if (empty($respuestas)) {
+            error_log("Bot: No hay respuestas predefinidas en la tabla");
+            return "Gracias por tu mensaje. Un responsable se pondrá en contacto contigo pronto.";
+        }
+        
         // Buscar coincidencias
         foreach ($respuestas as $respuesta) {
             $palabras_clave = explode(',', strtolower($respuesta['palabras_clave']));
             
+            error_log("Bot: Verificando palabras clave: " . $respuesta['palabras_clave']);
+            
             foreach ($palabras_clave as $palabra_clave) {
                 $palabra_clave = trim($palabra_clave);
                 if (!empty($palabra_clave) && strpos($mensaje_lower, $palabra_clave) !== false) {
+                    error_log("Bot: Coincidencia encontrada con: " . $palabra_clave);
                     return $respuesta['texto'];
                 }
             }
         }
         
         // Si no encuentra coincidencias, respuesta por defecto
+        error_log("Bot: No se encontraron coincidencias, usando respuesta por defecto");
         return "Gracias por tu mensaje. Un responsable se pondrá en contacto contigo pronto.";
         
     } catch (Exception $e) {
-        error_log("Error generating bot response: " . $e->getMessage());
+        error_log("Bot Error: " . $e->getMessage());
+        error_log("Bot Stack trace: " . $e->getTraceAsString());
         return "Gracias por contactarnos. Un responsable te atenderá pronto.";
+    }
+}
+
+// Función para verificar y crear la tabla mensajes_pred si no existe
+function verificarTablaMensajesPred() {
+    try {
+        $db = Database::getInstance()->getConnection();
+        
+        // Verificar si la tabla existe
+        $stmt = $db->prepare("SHOW TABLES LIKE 'mensajes_pred'");
+        $stmt->execute();
+        
+        if (!$stmt->fetch()) {
+            // Crear la tabla si no existe
+            $sql = "
+                CREATE TABLE `mensajes_pred` (
+                    `id` int(11) NOT NULL AUTO_INCREMENT,
+                    `tipo` enum('bot','auto') NOT NULL DEFAULT 'bot',
+                    `palabras_clave` text NOT NULL,
+                    `texto` text NOT NULL,
+                    `orden` int(11) NOT NULL DEFAULT 0,
+                    `activo` tinyint(1) NOT NULL DEFAULT 1,
+                    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (`id`),
+                    KEY `idx_tipo_orden` (`tipo`, `orden`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ";
+            
+            $db->exec($sql);
+            error_log("Tabla mensajes_pred creada exitosamente");
+            
+            // Insertar algunos mensajes de ejemplo
+            $mensajes_ejemplo = [
+                ['bot', 'hola,hi,buenos días,buenas tardes,buenas noches', '¡Hola! ¿En qué puedo ayudarte hoy?', 1],
+                ['bot', 'precio,costo,valor,cuanto cuesta', 'Te ayudo con información sobre precios. ¿Qué producto o servicio te interesa?', 2],
+                ['bot', 'horario,hora,cuando abren,horarios', 'Nuestros horarios de atención son de lunes a viernes de 9:00 AM a 6:00 PM.', 3],
+                ['bot', 'contacto,teléfono,email,dirección', 'Puedes contactarnos al teléfono 123-456-7890 o al email info@empresa.com', 4],
+                ['bot', 'ayuda,help,soporte', 'Estoy aquí para ayudarte. ¿Qué necesitas saber?', 5],
+                ['bot', 'gracias,thank you,muchas gracias', '¡De nada! ¿Hay algo más en lo que pueda ayudarte?', 6],
+                ['bot', 'adios,bye,hasta luego,chao', '¡Hasta luego! Que tengas un excelente día.', 7]
+            ];
+            
+            $stmt = $db->prepare("INSERT INTO mensajes_pred (tipo, palabras_clave, texto, orden) VALUES (?, ?, ?, ?)");
+            foreach ($mensajes_ejemplo as $mensaje) {
+                $stmt->execute($mensaje);
+            }
+            
+            error_log("Mensajes de ejemplo insertados en mensajes_pred");
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Error verificando tabla mensajes_pred: " . $e->getMessage());
+        return false;
     }
 }
 
