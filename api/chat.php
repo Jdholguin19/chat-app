@@ -26,7 +26,6 @@ function sendJsonResponse($data, $status = 200) {
     exit();
 }
 
-
 // Función mejorada para logging de errores
 function logError($message, $context = []) {
     $timestamp = date('Y-m-d H:i:s');
@@ -36,8 +35,6 @@ function logError($message, $context = []) {
     }
     error_log($logMessage, 3, getenv('LOG_PATH') . 'apii_errors.log'); // Cambia el nombre del archivo si lo deseas
 }
-
-
 
 // Verificar que el usuario esté logueado
 if (!isLoggedIn()) {
@@ -98,7 +95,7 @@ function handleGetRequest($action) {
     }
 }
 
-/* Envía un mensaje - Versión mejorada */
+/* Envíar un mensaje */
 function enviarMensaje($input) {
     try {
         logError("Iniciando envío de mensaje", ['input' => $input]);
