@@ -180,26 +180,27 @@ function generarRespuestaBot($mensaje) {
     }
 }
 
-/* Obtiene mensajes de un chat */
-function getMensajesChat($chat_id, $limit = 50) {
-    try {
-        $db = Database::getInstance()->getConnection();
-        
-        $stmt = $db->prepare("
-            SELECT id, remitente, contenido, fecha
-            FROM mensajes 
-            WHERE chat_id = ? 
-            ORDER BY fecha ASC 
-            LIMIT ?
-        ");
-        $stmt->execute([$chat_id, $limit]);
-        
-        return $stmt->fetchAll();
-    } catch (Exception $e) {
-        error_log("Error getting messages: " . $e->getMessage());
-        return [];
-    }
-}
+   /* Obtiene mensajes de un chat */
+   function getMensajesChat($chat_id, $limit = 50) {
+       try {
+           $db = Database::getInstance()->getConnection();
+           
+           $stmt = $db->prepare("
+               SELECT id, remitente, contenido, fecha
+               FROM mensajes 
+               WHERE chat_id = ? 
+               ORDER BY fecha ASC 
+               LIMIT ?
+           ");
+           $stmt->execute([$chat_id, $limit]);
+           
+           return $stmt->fetchAll(PDO::FETCH_ASSOC); // Asegúrate de que devuelva un array asociativo
+       } catch (Exception $e) {
+           error_log("Error getting messages: " . $e->getMessage());
+           return [];
+       }
+   }
+   
 
 /* Marca mensajes como leídos */
 function marcarMensajesComoLeidos($chat_id, $remitente_exclude = null) {

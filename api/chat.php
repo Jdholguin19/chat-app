@@ -224,44 +224,45 @@ function enviarMensaje($input) {
     }
 }
 
-/* Obtiene mensajes de un chat */
-function obtenerMensajes() {
-    try {
-        $chat_id = $_GET['chat_id'] ?? null;
-        $user_id = $_SESSION['user_id'];
-        $user_role = $_SESSION['user_role'];
-        
-        if (!$chat_id) {
-            // Si es cliente, obtener su chat
-            if ($user_role === 'cliente') {
-                $chat_id = getChatParaCliente($user_id);
-                if (!$chat_id) {
-                    sendJsonResponse(['error' => 'No se pudo obtener el chat'], 500);
-                }
-            } else {
-                sendJsonResponse(['error' => 'chat_id requerido'], 400);
-            }
-        }
-        
-        if (!verificarPermisoChat($chat_id, $user_id, $user_role)) {
-            sendJsonResponse(['error' => 'Sin permisos para este chat'], 403);
-        }
-        
-        $mensajes = getMensajesChat($chat_id);
-        
-        // Marcar mensajes como leídos
-        marcarMensajesComoLeidos($chat_id, $user_role === 'cliente' ? 'cliente' : 'resp');
-        
-        sendJsonResponse([
-            'success' => true,
-            'chat_id' => $chat_id,
-            'mensajes' => $mensajes
-        ], 200);
-    } catch (Exception $e) {
-        logError("Error obteniendo mensajes: " . $e->getMessage());
-        sendJsonResponse(['error' => 'Error interno del servidor'], 500);
-    }
-}
+   /* Obtiene mensajes de un chat */
+   function obtenerMensajes() {
+       try {
+           $chat_id = $_GET['chat_id'] ?? null;
+           $user_id = $_SESSION['user_id'];
+           $user_role = $_SESSION['user_role'];
+           
+           if (!$chat_id) {
+               // Si es cliente, obtener su chat
+               if ($user_role === 'cliente') {
+                   $chat_id = getChatParaCliente($user_id);
+                   if (!$chat_id) {
+                       sendJsonResponse(['error' => 'No se pudo obtener el chat'], 500);
+                   }
+               } else {
+                   sendJsonResponse(['error' => 'chat_id requerido'], 400);
+               }
+           }
+           
+           if (!verificarPermisoChat($chat_id, $user_id, $user_role)) {
+               sendJsonResponse(['error' => 'Sin permisos para este chat'], 403);
+           }
+           
+           $mensajes = getMensajesChat($chat_id);
+           
+           // Marcar mensajes como leídos
+           marcarMensajesComoLeidos($chat_id, $user_role === 'cliente' ? 'cliente' : 'resp');
+           
+           sendJsonResponse([
+               'success' => true,
+               'chat_id' => $chat_id,
+               'mensajes' => $mensajes
+           ], 200);
+       } catch (Exception $e) {
+           logError("Error obteniendo mensajes: " . $e->getMessage());
+           sendJsonResponse(['error' => 'Error interno del servidor'], 500);
+       }
+   }
+   
 
 /* Obtiene lista de chats solo para responsables */
 function obtenerChats() {
