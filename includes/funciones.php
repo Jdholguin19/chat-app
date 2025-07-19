@@ -92,6 +92,7 @@ function getChatParaCliente($cliente_id) {
     }
 }
 
+
 /* Guarda un mensaje en la base de datos */
 function guardarMensaje($chat_id, $remitente, $contenido) {
     try {
