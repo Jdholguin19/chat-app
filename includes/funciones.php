@@ -1,7 +1,7 @@
 <?php
-//Funciones auxiliares para el chat
+// Funciones auxiliares para el chat
 
-/*Obtiene el responsable con menos chats activos*/
+/* Obtiene el responsable con menos chats activos */
 function getResponsableConMenosChats() {
     try {
         $db = Database::getInstance()->getConnection();
@@ -25,7 +25,7 @@ function getResponsableConMenosChats() {
     }
 }
 
-/* Crea un nuevo chat y asigna un responsable*/
+/* Crea un nuevo chat y asigna un responsable */
 function crearNuevoChat($cliente_id) {
     try {
         $db = Database::getInstance()->getConnection();
@@ -65,7 +65,7 @@ function crearNuevoChat($cliente_id) {
     }
 }
 
-/*Obtiene o crea un chat para el cliente*/
+/* Obtiene o crea un chat para el cliente */
 function getChatParaCliente($cliente_id) {
     try {
         $db = Database::getInstance()->getConnection();
@@ -92,7 +92,7 @@ function getChatParaCliente($cliente_id) {
     }
 }
 
-/*Guarda un mensaje en la base de datos*/
+/* Guarda un mensaje en la base de datos */
 function guardarMensaje($chat_id, $remitente, $contenido) {
     try {
         $db = Database::getInstance()->getConnection();
@@ -117,7 +117,7 @@ function guardarMensaje($chat_id, $remitente, $contenido) {
     }
 }
 
-/*Genera respuesta automática del bot*/
+/* Genera respuesta automática del bot */
 function generarRespuestaBot($mensaje) {
     try {
         $db = Database::getInstance()->getConnection();
@@ -151,7 +151,7 @@ function generarRespuestaBot($mensaje) {
     }
 }
 
-/*Simula envío de WhatsApp*/
+/* Simula envío de WhatsApp */
 function sendWhatsApp($numero, $mensaje) {
     try {
         $log_file = getenv('WHATSAPP_LOG') ?: './logs/whatsapp.log';
@@ -172,7 +172,7 @@ function sendWhatsApp($numero, $mensaje) {
     }
 }
 
-/*Obtiene mensajes de un chat*/
+/* Obtiene mensajes de un chat */
 function getMensajesChat($chat_id, $limit = 50) {
     try {
         $db = Database::getInstance()->getConnection();
@@ -193,7 +193,7 @@ function getMensajesChat($chat_id, $limit = 50) {
     }
 }
 
-/*Marca mensajes como leídos*/
+/* Marca mensajes como leídos */
 function marcarMensajesComoLeidos($chat_id, $remitente_exclude = null) {
     try {
         $db = Database::getInstance()->getConnection();

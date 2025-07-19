@@ -16,7 +16,7 @@ $role = $_GET['role'] ?? 'cliente';
 if ($_POST) {
     $email = cleanInput($_POST['email']);
     $password = $_POST['password'];
-    $ip = getUserIP();
+    $ip = getUser IP();
     $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
     
     if (!empty($email) && !empty($password)) {

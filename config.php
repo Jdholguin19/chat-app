@@ -117,7 +117,7 @@ function cleanInput($data) {
 }
 
 // Función para obtener IP del usuario
-function getUserIP() {
+function getUser IP() {
     $ipKeys = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP', 'REMOTE_ADDR'];
     
     foreach ($ipKeys as $key) {
@@ -133,5 +133,4 @@ function getUserIP() {
     
     return $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 }
-
 ?>
