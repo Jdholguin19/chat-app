@@ -1,7 +1,7 @@
 <?php
 //Configuración principal del sistema
 
-session_start(); //Empezar la session
+session_start(); // Empezar la sesión
 
 // Cargar variables
 function loadEnv($path) {
