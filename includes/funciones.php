@@ -119,42 +119,35 @@ function guardarMensaje($chat_id, $remitente, $contenido) {
     }
 }
 
-/* Genera respuesta automática del bot - CORREGIDA */
+/* Genera respuesta automática del bot usando la tabla mensajes_pred */
 function generarRespuestaBot($mensaje) {
     try {
+        $db = Database::getInstance()->getConnection();
         $mensaje_lower = strtolower(trim($mensaje));
         
-        // Respuestas predefinidas con palabras clave
-        $respuestas_predefinidas = [
-            'hola' => ['hola', 'buenos días', 'buenas tardes', 'buenas noches', 'saludos'],
-            'ayuda' => ['ayuda', 'ayudar', 'soporte', 'asistencia'],
-            'precio' => ['precio', 'costo', 'cuánto cuesta', 'tarifa'],
-            'horario' => ['horario', 'abierto', 'cerrado', 'atención'],
-            'contacto' => ['contacto', 'teléfono', 'dirección', 'ubicación'],
-            'gracias' => ['gracias', 'thank you', 'muchas gracias'],
-            'problema' => ['problema', 'error', 'falla', 'no funciona']
-        ];
-        
-        $mensajes_respuesta = [
-            'hola' => '¡Hola! ¿En qué puedo ayudarte hoy?',
-            'ayuda' => 'Estoy aquí para ayudarte. Un responsable se pondrá en contacto contigo pronto.',
-            'precio' => 'Para información sobre precios, un responsable te atenderá en breve.',
-            'horario' => 'Nuestro horario de atención es de 9:00 AM a 6:00 PM, de lunes a viernes.',
-            'contacto' => 'Puedes contactarnos a través de este chat o llamarnos al teléfono de la empresa.',
-            'gracias' => '¡De nada! Estoy aquí para ayudarte.',
-            'problema' => 'Lamento escuchar que tienes un problema. Un responsable te ayudará a resolverlo pronto.'
-        ];
+        // Obtener todas las respuestas predefinidas ordenadas por prioridad
+        $stmt = $db->prepare("
+            SELECT palabras_clave, texto 
+            FROM mensajes_pred 
+            WHERE tipo = 'bot' 
+            ORDER BY orden ASC
+        ");
+        $stmt->execute();
+        $respuestas = $stmt->fetchAll();
         
         // Buscar coincidencias
-        foreach ($respuestas_predefinidas as $categoria => $palabras_clave) {
-            foreach ($palabras_clave as $palabra) {
-                if (strpos($mensaje_lower, $palabra) !== false) {
-                    return $mensajes_respuesta[$categoria];
+        foreach ($respuestas as $respuesta) {
+            $palabras_clave = explode(',', strtolower($respuesta['palabras_clave']));
+            
+            foreach ($palabras_clave as $palabra_clave) {
+                $palabra_clave = trim($palabra_clave);
+                if (!empty($palabra_clave) && strpos($mensaje_lower, $palabra_clave) !== false) {
+                    return $respuesta['texto'];
                 }
             }
         }
         
-        // Respuesta por defecto
+        // Si no encuentra coincidencias, respuesta por defecto
         return "Gracias por tu mensaje. Un responsable se pondrá en contacto contigo pronto.";
         
     } catch (Exception $e) {
@@ -228,7 +221,7 @@ function marcarMensajesComoLeidos($chat_id, $remitente_exclude = null) {
     }
 }
 
-/* Obtiene lista de chats solo para responsables - FUNCIÓN ÚNICA */
+/* Obtiene lista de chats solo para responsables */
 function obtenerChatsResponsable($user_id) {
     try {
         $db = Database::getInstance()->getConnection();

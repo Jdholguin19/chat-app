@@ -2,7 +2,7 @@
 require_once '../config.php';
 require_once '../includes/funciones.php';
 
-// Habilitar reporte de errores para debugging (remover en producción)
+// Deshabilitar reporte de errores en pantalla para producción
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
@@ -19,11 +19,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+// Función para enviar respuesta JSON y terminar
+function sendJsonResponse($data, $status = 200) {
+    http_response_code($status);
+    echo json_encode($data);
+    exit();
+}
+
 // Verificar que el usuario esté logueado
 if (!isLoggedIn()) {
-    http_response_code(401);
-    echo json_encode(['error' => 'No autorizado']);
-    exit();
+    sendJsonResponse(['error' => 'No autorizado'], 401);
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -38,24 +43,26 @@ try {
             handleGetRequest($action);
             break;
         default:
-            throw new Exception('Método no permitido');
+            sendJsonResponse(['error' => 'Método no permitido'], 405);
     }
 } catch (Exception $e) {
     error_log("API Error: " . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    error_log("Stack trace: " . $e->getTraceAsString());
+    sendJsonResponse(['error' => 'Error interno del servidor'], 500);
 }
 
 /* Maneja requests POST */
 function handlePostRequest($action) {
-    $input = json_decode(file_get_contents('php://input'), true);
-    
     switch ($action) {
         case 'send':
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                sendJsonResponse(['error' => 'JSON inválido'], 400);
+            }
             enviarMensaje($input);
             break;
         default:
-            throw new Exception('Acción no válida');
+            sendJsonResponse(['error' => 'Acción no válida'], 400);
     }
 }
 
@@ -69,39 +76,48 @@ function handleGetRequest($action) {
             obtenerChats();
             break;
         default:
-            throw new Exception('Acción no válida');
+            sendJsonResponse(['error' => 'Acción no válida'], 400);
     }
 }
 
 /* Envía un mensaje */
 function enviarMensaje($input) {
     try {
+        // Validar entrada
+        if (!is_array($input)) {
+            sendJsonResponse(['error' => 'Datos inválidos'], 400);
+        }
+        
         $chat_id = $input['chat_id'] ?? null;
         $mensaje = trim($input['mensaje'] ?? '');
         $user_role = $_SESSION['user_role'];
         $user_id = $_SESSION['user_id'];
         
+        // Validaciones básicas
         if (empty($mensaje)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'El mensaje no puede estar vacío']);
-            return;
+            sendJsonResponse(['error' => 'El mensaje no puede estar vacío'], 400);
+        }
+        
+        if (strlen($mensaje) > 500) {
+            sendJsonResponse(['error' => 'El mensaje es demasiado largo (máximo 500 caracteres)'], 400);
         }
         
         // Si es cliente y no tiene chat_id, obtener o crear chat
         if ($user_role === 'cliente' && !$chat_id) {
             $chat_id = getChatParaCliente($user_id);
             if (!$chat_id) {
-                http_response_code(500);
-                echo json_encode(['error' => 'No se pudo crear el chat']);
-                return;
+                sendJsonResponse(['error' => 'No se pudo crear el chat'], 500);
             }
+        }
+        
+        // Verificar que chat_id sea válido
+        if (!$chat_id || !is_numeric($chat_id)) {
+            sendJsonResponse(['error' => 'ID de chat inválido'], 400);
         }
         
         // Verificar permisos del chat
         if (!verificarPermisoChat($chat_id, $user_id, $user_role)) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Sin permisos para este chat']);
-            return;
+            sendJsonResponse(['error' => 'Sin permisos para este chat'], 403);
         }
         
         // Guardar mensaje del usuario
@@ -109,9 +125,7 @@ function enviarMensaje($input) {
         $mensaje_id = guardarMensaje($chat_id, $remitente, $mensaje);
         
         if (!$mensaje_id) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Error al guardar el mensaje']);
-            return;
+            sendJsonResponse(['error' => 'Error al guardar el mensaje'], 500);
         }
         
         $response = [
@@ -125,24 +139,29 @@ function enviarMensaje($input) {
         
         // Si es cliente, generar respuesta del bot
         if ($user_role === 'cliente') {
-            $respuesta_bot = generarRespuestaBot($mensaje);
-            $bot_mensaje_id = guardarMensaje($chat_id, 'bot', $respuesta_bot);
-            
-            if ($bot_mensaje_id) {
-                $response['bot_response'] = [
-                    'mensaje_id' => $bot_mensaje_id,
-                    'contenido' => $respuesta_bot,
-                    'remitente' => 'bot',
-                    'fecha' => date('Y-m-d H:i:s')
-                ];
+            try {
+                $respuesta_bot = generarRespuestaBot($mensaje);
+                $bot_mensaje_id = guardarMensaje($chat_id, 'bot', $respuesta_bot);
+                
+                if ($bot_mensaje_id) {
+                    $response['bot_response'] = [
+                        'mensaje_id' => $bot_mensaje_id,
+                        'contenido' => $respuesta_bot,
+                        'remitente' => 'bot',
+                        'fecha' => date('Y-m-d H:i:s')
+                    ];
+                }
+            } catch (Exception $e) {
+                error_log("Error generando respuesta bot: " . $e->getMessage());
+                // No fallar por esto, continuar sin respuesta bot
             }
         }
         
-        echo json_encode($response);
+        sendJsonResponse($response, 200);
     } catch (Exception $e) {
         error_log("Error enviando mensaje: " . $e->getMessage());
-        http_response_code(500);
-        echo json_encode(['error' => 'Error interno del servidor']);
+        error_log("Stack trace: " . $e->getTraceAsString());
+        sendJsonResponse(['error' => 'Error interno del servidor'], 500);
     }
 }
 
@@ -158,21 +177,15 @@ function obtenerMensajes() {
             if ($user_role === 'cliente') {
                 $chat_id = getChatParaCliente($user_id);
                 if (!$chat_id) {
-                    http_response_code(500);
-                    echo json_encode(['error' => 'No se pudo obtener el chat']);
-                    return;
+                    sendJsonResponse(['error' => 'No se pudo obtener el chat'], 500);
                 }
             } else {
-                http_response_code(400);
-                echo json_encode(['error' => 'chat_id requerido']);
-                return;
+                sendJsonResponse(['error' => 'chat_id requerido'], 400);
             }
         }
         
         if (!verificarPermisoChat($chat_id, $user_id, $user_role)) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Sin permisos para este chat']);
-            return;
+            sendJsonResponse(['error' => 'Sin permisos para este chat'], 403);
         }
         
         $mensajes = getMensajesChat($chat_id);
@@ -180,15 +193,14 @@ function obtenerMensajes() {
         // Marcar mensajes como leídos
         marcarMensajesComoLeidos($chat_id, $user_role === 'cliente' ? 'cliente' : 'resp');
         
-        echo json_encode([
+        sendJsonResponse([
             'success' => true,
             'chat_id' => $chat_id,
             'mensajes' => $mensajes
-        ]);
+        ], 200);
     } catch (Exception $e) {
         error_log("Error obteniendo mensajes: " . $e->getMessage());
-        http_response_code(500);
-        echo json_encode(['error' => 'Error interno del servidor']);
+        sendJsonResponse(['error' => 'Error interno del servidor'], 500);
     }
 }
 
@@ -196,22 +208,19 @@ function obtenerMensajes() {
 function obtenerChats() {
     try {
         if ($_SESSION['user_role'] !== 'responsable') {
-            http_response_code(403);
-            echo json_encode(['error' => 'Solo disponible para responsables']);
-            return;
+            sendJsonResponse(['error' => 'Solo disponible para responsables'], 403);
         }
         
         $user_id = $_SESSION['user_id'];
         $chats = obtenerChatsResponsable($user_id);
         
-        echo json_encode([
+        sendJsonResponse([
             'success' => true,
             'chats' => $chats
-        ]);
+        ], 200);
     } catch (Exception $e) {
         error_log("Error obteniendo lista de chats: " . $e->getMessage());
-        http_response_code(500);
-        echo json_encode(['error' => 'Error interno del servidor']);
+        sendJsonResponse(['error' => 'Error interno del servidor'], 500);
     }
 }
 

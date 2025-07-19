@@ -185,7 +185,7 @@ if (!$chat_id) {
         loadMessages();
         
         // Actualizar mensajes cada 5 segundos
-        setInterval(loadMessages, 5000);
+        setInterval(loadMessages, 100);
     </script>
     <?php endif; ?>
 </body>
